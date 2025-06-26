@@ -13,6 +13,158 @@ app.use(express.json());
 const SCRAPER_URL = process.env.SCRAPER_URL || 'https://cloud-scraper-smg-production.up.railway.app';
 const PIPELINE_URL = process.env.PIPELINE_URL || 'https://smg-pipeline-phase2-production.up.railway.app';
 
+// TEST PAGE ENDPOINT
+app.get('/test', (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SMG Orchestrator Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+        .module { border: 1px solid #ccc; padding: 20px; margin: 10px 0; background: white; border-radius: 5px; }
+        button { background: #007cba; color: white; padding: 10px 20px; border: none; cursor: pointer; border-radius: 3px; margin: 5px; }
+        button:hover { background: #005a87; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; white-space: pre-wrap; font-family: monospace; border: 1px solid #ddd; max-height: 400px; overflow-y: auto; }
+        textarea { width: 100%; height: 60px; font-family: monospace; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 3px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    </style>
+</head>
+<body>
+    <h1>🚀 SMG Orchestrator Test Center</h1>
+    <div class="status success">✅ Orchestrator running! Test the complete SMG automation below:</div>
+    
+    <div class="module">
+        <h3>📊 System Status Check</h3>
+        <p>Test connectivity to all services (Scraper + Pipeline + Orchestrator):</p>
+        <button onclick="testStatus()">🔍 Check System Status</button>
+        <div id="statusResult" class="result">Click button to test...</div>
+    </div>
+    
+    <div class="module">
+        <h3>📅 Daily Orchestration Test</h3>
+        <p>Test complete daily flow (3-day rolling update):</p>
+        <div class="warning">⚠️ This will call the real scraper and pipeline - use carefully!</div>
+        <button onclick="testDaily()">🔄 Test Daily Flow</button>
+        <div id="dailyResult" class="result">Click button to test...</div>
+    </div>
+    
+    <div class="module">
+        <h3>📋 Backfill Test</h3>
+        <p>Test backfill orchestration for specific dates:</p>
+        <label>Start Date:</label> <input type="date" id="startDate" value="2025-06-17">
+        <label>End Date:</label> <input type="date" id="endDate" value="2025-06-18">
+        <br><br>
+        <div class="warning">⚠️ This will process real data - start with small date ranges!</div>
+        <button onclick="testBackfill()">📊 Test Backfill</button>
+        <div id="backfillResult" class="result">Click button to test...</div>
+    </div>
+
+    <div class="module">
+        <h3>🔗 Service Links</h3>
+        <p>
+            <a href="/status" target="_blank">Orchestrator Status</a> | 
+            <a href="${SCRAPER_URL}" target="_blank">Phase 1: Scraper</a> | 
+            <a href="${PIPELINE_URL}" target="_blank">Phase 2: Pipeline</a>
+        </p>
+        <p><strong>Architecture:</strong> Phase 1 (Scraper) → Phase 3 (Orchestrator) → Phase 2 (Pipeline)</p>
+    </div>
+
+    <script>
+        const baseUrl = window.location.origin;
+        
+        async function testStatus() {
+            const resultDiv = document.getElementById('statusResult');
+            resultDiv.textContent = '🔍 Checking system status...';
+            resultDiv.className = 'result';
+            
+            try {
+                const response = await fetch(baseUrl + '/status');
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.textContent = '✅ Status Check Success:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.style.background = '#d4edda';
+                } else {
+                    resultDiv.textContent = '❌ Status Check Error:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.style.background = '#f8d7da';
+                }
+            } catch (error) {
+                resultDiv.textContent = '❌ Network Error: ' + error.message;
+                resultDiv.style.background = '#f8d7da';
+            }
+        }
+        
+        async function testDaily() {
+            const resultDiv = document.getElementById('dailyResult');
+            resultDiv.textContent = '🔄 Running daily orchestration...\\nThis may take several minutes...';
+            resultDiv.className = 'result';
+            
+            try {
+                const response = await fetch(baseUrl + '/orchestrate/daily', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.textContent = '✅ Daily Orchestration Success:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.style.background = '#d4edda';
+                } else {
+                    resultDiv.textContent = '❌ Daily Orchestration Error:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.style.background = '#f8d7da';
+                }
+            } catch (error) {
+                resultDiv.textContent = '❌ Network Error: ' + error.message;
+                resultDiv.style.background = '#f8d7da';
+            }
+        }
+        
+        async function testBackfill() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const resultDiv = document.getElementById('backfillResult');
+            
+            if (!startDate || !endDate) {
+                resultDiv.textContent = '❌ Please select both start and end dates';
+                resultDiv.style.background = '#f8d7da';
+                return;
+            }
+            
+            resultDiv.textContent = \`📊 Running backfill orchestration for \${startDate} to \${endDate}...\\nThis may take several minutes...\`;
+            resultDiv.className = 'result';
+            
+            try {
+                const response = await fetch(baseUrl + '/orchestrate/backfill', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ startDate, endDate })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.textContent = '✅ Backfill Orchestration Success:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.style.background = '#d4edda';
+                } else {
+                    resultDiv.textContent = '❌ Backfill Orchestration Error:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.style.background = '#f8d7da';
+                }
+            } catch (error) {
+                resultDiv.textContent = '❌ Network Error: ' + error.message;
+                resultDiv.style.background = '#f8d7da';
+            }
+        }
+    </script>
+</body>
+</html>
+  `);
+});
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -23,7 +175,8 @@ app.get('/', (req, res) => {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
       '/orchestrate/daily': 'POST - Run daily 3-day rolling update',
-      '/status': 'GET - Service status and health checks'
+      '/status': 'GET - Service status and health checks',
+      '/test': 'GET - Test page for browser testing'
     },
     services: {
       scraper: SCRAPER_URL,
@@ -357,6 +510,7 @@ app.listen(PORT, () => {
   console.log('- Pipeline URL:', PIPELINE_URL);
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
+  console.log('- GET  /test       - Browser test page');
   console.log('- POST /orchestrate - Main orchestration');
   console.log('- POST /orchestrate/daily - Daily automation');
   console.log('- POST /orchestrate/backfill - Backfill date ranges');
