@@ -170,7 +170,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SMG Data Orchestrator',
-    version: '1.1.0',
+    version: '1.2.0',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
@@ -183,12 +183,13 @@ app.get('/', (req, res) => {
       pipeline: PIPELINE_URL
     },
     endpoints_fixed: 'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
+    internal_call_fix: 'Fixed 404 error by removing self-referencing HTTP calls',
     timestamp: new Date().toISOString()
   });
 });
 
-// MAIN ORCHESTRATION ENDPOINT
-app.post('/orchestrate', async (req, res) => {
+// CORE ORCHESTRATION FUNCTION
+async function runOrchestration(mode, dates = null) {
   const orchestrationStart = new Date();
   const orchestrationId = `orch_${Date.now()}`;
   
@@ -207,8 +208,6 @@ app.post('/orchestrate', async (req, res) => {
 
   try {
     console.log(`🚀 Starting SMG orchestration ${orchestrationId}...`);
-    
-    const { dates, mode = 'daily' } = req.body;
     
     // PHASE 1: SCRAPING
     console.log('📥 Phase 1: Starting SMG data scraping...');
@@ -328,11 +327,11 @@ app.post('/orchestrate', async (req, res) => {
     
     console.log(`🎉 SMG Orchestration complete: ${orchestrationResults.records_processed} records in ${orchestrationResults.total_duration_ms}ms`);
     
-    res.json({
+    return {
       success: true,
       orchestration: orchestrationResults,
       timestamp: new Date().toISOString()
-    });
+    };
     
   } catch (error) {
     console.error('❌ SMG orchestration error:', error);
@@ -342,30 +341,39 @@ app.post('/orchestrate', async (req, res) => {
     orchestrationResults.total_duration_ms = Date.now() - orchestrationStart.getTime();
     orchestrationResults.final_error = error.message;
     
-    res.status(500).json({
+    throw {
       success: false,
       orchestration: orchestrationResults,
       error: 'Orchestration failed',
       message: error.message,
       timestamp: new Date().toISOString()
-    });
+    };
+  }
+}
+
+// MAIN ORCHESTRATION ENDPOINT
+app.post('/orchestrate', async (req, res) => {
+  try {
+    const { dates, mode = 'daily' } = req.body;
+    const result = await runOrchestration(mode, dates);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json(error);
   }
 });
 
-// DAILY ORCHESTRATION ENDPOINT
+// DAILY ORCHESTRATION ENDPOINT - FIXED VERSION
 app.post('/orchestrate/daily', async (req, res) => {
   console.log('📅 Daily SMG orchestration triggered...');
   
   try {
-    // Call main orchestration with daily mode
-    const response = await axios.post(`${req.protocol}://${req.get('host')}/orchestrate`, {
-      mode: 'daily'
-    });
+    // Call core orchestration function directly instead of HTTP call
+    const result = await runOrchestration('daily');
     
     res.json({
       success: true,
       message: 'Daily orchestration completed',
-      results: response.data,
+      results: result,
       timestamp: new Date().toISOString()
     });
     
@@ -374,13 +382,14 @@ app.post('/orchestrate/daily', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Daily orchestration failed',
-      message: error.message,
+      message: error.message || (error.orchestration ? error.orchestration.final_error : 'Unknown error'),
+      orchestration_details: error.orchestration || null,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-// BACKFILL ORCHESTRATION ENDPOINT
+// BACKFILL ORCHESTRATION ENDPOINT - FIXED VERSION
 app.post('/orchestrate/backfill', async (req, res) => {
   console.log('📊 Backfill SMG orchestration triggered...');
   
@@ -401,17 +410,14 @@ app.post('/orchestrate/backfill', async (req, res) => {
       targetDates = generateDateRange(startDate, endDate);
     }
     
-    // Call main orchestration with backfill mode
-    const response = await axios.post(`${req.protocol}://${req.get('host')}/orchestrate`, {
-      mode: 'backfill',
-      dates: targetDates
-    });
+    // Call core orchestration function directly instead of HTTP call
+    const result = await runOrchestration('backfill', targetDates);
     
     res.json({
       success: true,
       message: `Backfill orchestration completed for ${targetDates.length} dates`,
       dates_processed: targetDates,
-      results: response.data,
+      results: result,
       timestamp: new Date().toISOString()
     });
     
@@ -420,7 +426,8 @@ app.post('/orchestrate/backfill', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Backfill orchestration failed',
-      message: error.message,
+      message: error.message || (error.orchestration ? error.orchestration.final_error : 'Unknown error'),
+      orchestration_details: error.orchestration || null,
       timestamp: new Date().toISOString()
     });
   }
@@ -442,7 +449,8 @@ app.get('/status', async (req, res) => {
         pipeline_url: PIPELINE_URL,
         node_version: process.version,
         environment: process.env.NODE_ENV || 'production',
-        endpoint_fixes: 'Using correct scraper endpoints: /smg-download and GET /smg-backfill'
+        endpoint_fixes: 'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
+        internal_call_fix: 'Fixed 404 error by removing self-referencing HTTP calls'
       },
       scheduled_jobs: {
         daily_automation: {
@@ -523,8 +531,8 @@ cron.schedule('30 12 * * *', async () => {
   console.log('⏰ Scheduled daily SMG orchestration starting...');
   
   try {
-    const response = await axios.post(`http://localhost:${PORT}/orchestrate/daily`);
-    console.log('✅ Scheduled orchestration completed:', response.data);
+    const result = await runOrchestration('daily');
+    console.log('✅ Scheduled orchestration completed:', result);
   } catch (error) {
     console.error('❌ Scheduled orchestration failed:', error.message);
   }
@@ -539,9 +547,10 @@ app.listen(PORT, () => {
   console.log('Service Configuration:');
   console.log('- Scraper URL:', SCRAPER_URL);
   console.log('- Pipeline URL:', PIPELINE_URL);
-  console.log('\nEndpoint Fixes Applied:');
-  console.log('- Daily mode now uses: GET /smg-download?date=YYYY-MM-DD');
-  console.log('- Backfill mode now uses: GET /smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD');
+  console.log('\nFixes Applied:');
+  console.log('- Endpoint fixes: Daily mode uses GET /smg-download?date=YYYY-MM-DD');
+  console.log('- Endpoint fixes: Backfill mode uses GET /smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD');
+  console.log('- Internal call fix: Removed self-referencing HTTP calls to prevent 404 errors');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
