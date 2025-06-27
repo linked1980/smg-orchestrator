@@ -36,6 +36,7 @@ app.get('/test', (req, res) => {
 <body>
     <h1>🚀 SMG Orchestrator Test Center</h1>
     <div class="status success">✅ Orchestrator running! Test the complete SMG automation below:</div>
+    <div class="status warning">🔧 FIXED: Now uses real CSV data from scraper instead of test data!</div>
     
     <div class="module">
         <h3>📊 System Status Check</h3>
@@ -170,7 +171,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SMG Data Orchestrator',
-    version: '1.2.0',
+    version: '1.3.0',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
@@ -182,13 +183,61 @@ app.get('/', (req, res) => {
       scraper: SCRAPER_URL,
       pipeline: PIPELINE_URL
     },
-    endpoints_fixed: 'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
-    internal_call_fix: 'Fixed 404 error by removing self-referencing HTTP calls',
+    fixes_applied: [
+      'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
+      'Fixed 404 error by removing self-referencing HTTP calls',
+      'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data'
+    ],
     timestamp: new Date().toISOString()
   });
 });
 
-// CORE ORCHESTRATION FUNCTION
+// ENHANCED CSV DATA EXTRACTION FUNCTION
+async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null) {
+  console.log('📊 Extracting CSV data from scraper response...');
+  
+  // Method 1: Check if CSV data is directly provided (from /smg-daily endpoint)
+  if (scrapingResults.csv_data && scrapingResults.csv_data.length > 100) {
+    console.log('  ✅ Found CSV data directly in response');
+    return scrapingResults.csv_data;
+  }
+  
+  // Method 2: Try to get download path and read file (from /smg-download endpoint)
+  if (scrapingResults.result && scrapingResults.result.downloadPath) {
+    console.log('  📂 Attempting to read CSV from download path...');
+    try {
+      const fs = require('fs');
+      const csvData = fs.readFileSync(scrapingResults.result.downloadPath, 'utf8');
+      console.log(`  ✅ Successfully read ${csvData.length} characters from file`);
+      return csvData;
+    } catch (fileError) {
+      console.log(`  ⚠️ Could not read file: ${fileError.message}`);
+    }
+  }
+  
+  // Method 3: Try alternative scraper endpoint for better data extraction
+  if (mode === 'daily' && dateParam) {
+    console.log('  🔄 Attempting fallback to /smg-daily endpoint...');
+    try {
+      const response = await axios.post(`${SCRAPER_URL}/smg-daily`, {}, {
+        timeout: 300000
+      });
+      
+      if (response.data && response.data.csv_data && response.data.csv_data.length > 100) {
+        console.log('  ✅ Got CSV data from /smg-daily fallback');
+        return response.data.csv_data;
+      }
+    } catch (fallbackError) {
+      console.log(`  ⚠️ Fallback endpoint failed: ${fallbackError.message}`);
+    }
+  }
+  
+  // Method 4: Final fallback - generate error instead of using mock data
+  console.log('  ❌ Could not extract real CSV data from any source');
+  throw new Error('Unable to extract CSV data from scraper response. No valid data found in response.');
+}
+
+// CORE ORCHESTRATION FUNCTION - UPDATED TO USE REAL DATA
 async function runOrchestration(mode, dates = null) {
   const orchestrationStart = new Date();
   const orchestrationId = `orch_${Date.now()}`;
@@ -214,6 +263,7 @@ async function runOrchestration(mode, dates = null) {
     const scrapingStart = Date.now();
     
     let scrapingResults;
+    let csvData;
     try {
       if (mode === 'daily') {
         // Use /smg-download endpoint for yesterday's data
@@ -227,12 +277,14 @@ async function runOrchestration(mode, dates = null) {
         });
         scrapingResults = response.data;
         
+        // FIXED: Extract real CSV data instead of using mock data
+        csvData = await extractCSVDataFromScraper(scrapingResults, 'daily', dateParam);
+        
         // Convert single download result to expected format
-        if (scrapingResults.status === 'success') {
+        if (scrapingResults.status === 'success' || scrapingResults.result) {
           scrapingResults.files_processed = 1;
           scrapingResults.dates_processed = [dateParam];
-          // Mock CSV data for now - in real implementation, scraper should return actual CSV content
-          scrapingResults.csv_data = `store,question_1\n1738,4.5\n1805,4.2\n2138,4.0`;
+          scrapingResults.csv_data = csvData;
         }
         
       } else if (mode === 'backfill' && dates) {
@@ -246,27 +298,42 @@ async function runOrchestration(mode, dates = null) {
         });
         scrapingResults = response.data;
         
+        // Extract real CSV data for backfill
+        csvData = await extractCSVDataFromScraper(scrapingResults, 'backfill');
+        
         // Convert backfill result to expected format
         if (scrapingResults.status === 'success') {
-          scrapingResults.files_processed = scrapingResults.summary?.successCount || 0;
+          scrapingResults.files_processed = scrapingResults.summary?.successCount || scrapingResults.files_processed || 0;
           scrapingResults.dates_processed = dates;
-          // Mock CSV data for now - in real implementation, scraper should return actual CSV content
-          scrapingResults.csv_data = `store,question_1\n1738,4.5\n1805,4.2\n2138,4.0`;
+          scrapingResults.csv_data = csvData;
         }
         
       } else {
         throw new Error('Invalid mode or missing dates for backfill');
       }
       
+      // Validate we have real CSV data
+      if (!csvData || csvData.length < 100) {
+        throw new Error('Scraper returned insufficient CSV data - possible scraping failure');
+      }
+      
+      // Count CSV records for validation
+      const csvLines = csvData.split('\n').filter(line => line.trim().length > 0);
+      const csvRecords = csvLines.length - 1; // Subtract header
+      
+      console.log(`📊 CSV data extracted: ${csvData.length} characters, ${csvRecords} data records`);
+      
       orchestrationResults.phases.scraping = {
         status: 'completed',
         duration_ms: Date.now() - scrapingStart,
         files_scraped: scrapingResults.files_processed || 0,
         dates_processed: scrapingResults.dates_processed || [],
+        csv_records_extracted: csvRecords,
+        csv_data_size: csvData.length,
         scraper_endpoint_used: mode === 'daily' ? '/smg-download' : '/smg-backfill'
       };
       
-      console.log(`✅ Phase 1 complete: ${scrapingResults.files_processed || 0} files scraped`);
+      console.log(`✅ Phase 1 complete: ${scrapingResults.files_processed || 0} files scraped, ${csvRecords} records extracted`);
       
     } catch (error) {
       orchestrationResults.phases.scraping = {
@@ -285,13 +352,15 @@ async function runOrchestration(mode, dates = null) {
     
     try {
       // Check if we have CSV data to process
-      if (!scrapingResults.csv_data || scrapingResults.csv_data.length === 0) {
-        throw new Error('No CSV data received from scraper');
+      if (!csvData || csvData.length === 0) {
+        throw new Error('No CSV data available for processing');
       }
+      
+      console.log(`📤 Sending ${csvData.length} characters of CSV data to pipeline...`);
       
       // Process the scraped data through the pipeline
       const response = await axios.post(`${PIPELINE_URL}/smg-pipeline`, {
-        csvData: scrapingResults.csv_data,
+        csvData: csvData,
         uploadMode: mode === 'daily' ? 'replace' : 'upsert'
       }, {
         timeout: 120000 // 2 minute timeout for processing
@@ -303,7 +372,8 @@ async function runOrchestration(mode, dates = null) {
         status: 'completed',
         duration_ms: Date.now() - processingStart,
         records_processed: processingResults.pipeline_results?.records_processed || 0,
-        upload_mode: processingResults.pipeline_results?.stages?.upload?.upload_mode
+        upload_mode: processingResults.pipeline_results?.stages?.upload?.upload_mode,
+        csv_input_size: csvData.length
       };
       
       orchestrationResults.records_processed = processingResults.pipeline_results?.records_processed || 0;
@@ -449,8 +519,11 @@ app.get('/status', async (req, res) => {
         pipeline_url: PIPELINE_URL,
         node_version: process.version,
         environment: process.env.NODE_ENV || 'production',
-        endpoint_fixes: 'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
-        internal_call_fix: 'Fixed 404 error by removing self-referencing HTTP calls'
+        fixes_applied: [
+          'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
+          'Fixed 404 error by removing self-referencing HTTP calls',
+          'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data'
+        ]
       },
       scheduled_jobs: {
         daily_automation: {
@@ -473,7 +546,7 @@ app.get('/status', async (req, res) => {
         url: SCRAPER_URL,
         response_code: scraperHealth.status === 'fulfilled' ? scraperHealth.value.status : null,
         error: scraperHealth.status === 'rejected' ? scraperHealth.reason.message : null,
-        available_endpoints: ['/smg-download?date=YYYY-MM-DD', '/smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD']
+        available_endpoints: ['/smg-download?date=YYYY-MM-DD', '/smg-daily (POST)', '/smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD']
       };
       
       systemStatus.service_health.pipeline = {
@@ -551,6 +624,7 @@ app.listen(PORT, () => {
   console.log('- Endpoint fixes: Daily mode uses GET /smg-download?date=YYYY-MM-DD');
   console.log('- Endpoint fixes: Backfill mode uses GET /smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD');
   console.log('- Internal call fix: Removed self-referencing HTTP calls to prevent 404 errors');
+  console.log('- CRITICAL FIX: Now extracts and uses real CSV data from scraper instead of hardcoded test data');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
