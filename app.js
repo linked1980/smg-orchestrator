@@ -36,7 +36,7 @@ app.get('/test', (req, res) => {
 <body>
     <h1>🚀 SMG Orchestrator Test Center</h1>
     <div class="status success">✅ Orchestrator running! Test the complete SMG automation below:</div>
-    <div class="status warning">🔧 FIXED: Now uses real CSV data from scraper instead of test data!</div>
+    <div class="status warning">🔍 DEBUG VERSION: Added extensive CSV extraction logging!</div>
     
     <div class="module">
         <h3>📊 System Status Check</h3>
@@ -171,7 +171,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SMG Data Orchestrator',
-    version: '1.3.0',
+    version: '1.4.0',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
@@ -186,58 +186,123 @@ app.get('/', (req, res) => {
     fixes_applied: [
       'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
       'Fixed 404 error by removing self-referencing HTTP calls',
-      'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data'
+      'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data',
+      'DEBUG VERSION: Added extensive CSV extraction logging to identify data issue'
     ],
     timestamp: new Date().toISOString()
   });
 });
 
-// ENHANCED CSV DATA EXTRACTION FUNCTION
+// ENHANCED CSV DATA EXTRACTION FUNCTION WITH EXTENSIVE DEBUG LOGGING
 async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null) {
-  console.log('📊 Extracting CSV data from scraper response...');
+  console.log('🔍 DEBUG: extractCSVDataFromScraper() - START');
+  console.log('📊 DEBUG: scrapingResults type:', typeof scrapingResults);
+  console.log('📊 DEBUG: scrapingResults keys:', scrapingResults ? Object.keys(scrapingResults) : 'NULL');
+  console.log('📊 DEBUG: mode:', mode);
+  console.log('📊 DEBUG: dateParam:', dateParam);
+  
+  // Log full scraping results for analysis
+  console.log('📊 DEBUG: Full scrapingResults:', JSON.stringify(scrapingResults, null, 2));
   
   // Method 1: Check if CSV data is directly provided (from /smg-daily endpoint)
-  if (scrapingResults.csv_data && scrapingResults.csv_data.length > 100) {
-    console.log('  ✅ Found CSV data directly in response');
-    return scrapingResults.csv_data;
+  console.log('🔍 DEBUG: Checking Method 1 - Direct CSV data');
+  if (scrapingResults.csv_data) {
+    console.log('📊 DEBUG: Found csv_data field, length:', scrapingResults.csv_data.length);
+    console.log('📊 DEBUG: csv_data content preview:', scrapingResults.csv_data.substring(0, 200));
+    
+    if (scrapingResults.csv_data.length > 100) {
+      console.log('✅ DEBUG: Method 1 SUCCESS - Using direct CSV data');
+      return scrapingResults.csv_data;
+    } else {
+      console.log('⚠️ DEBUG: Method 1 REJECTED - CSV data too short');
+    }
+  } else {
+    console.log('📊 DEBUG: Method 1 SKIPPED - No csv_data field found');
   }
   
   // Method 2: Try to get download path and read file (from /smg-download endpoint)
+  console.log('🔍 DEBUG: Checking Method 2 - File download path');
   if (scrapingResults.result && scrapingResults.result.downloadPath) {
-    console.log('  📂 Attempting to read CSV from download path...');
+    console.log('📊 DEBUG: Found downloadPath:', scrapingResults.result.downloadPath);
     try {
       const fs = require('fs');
       const csvData = fs.readFileSync(scrapingResults.result.downloadPath, 'utf8');
-      console.log(`  ✅ Successfully read ${csvData.length} characters from file`);
+      console.log(`✅ DEBUG: Method 2 SUCCESS - Read ${csvData.length} characters from file`);
+      console.log('📊 DEBUG: File content preview:', csvData.substring(0, 200));
       return csvData;
     } catch (fileError) {
-      console.log(`  ⚠️ Could not read file: ${fileError.message}`);
+      console.log(`❌ DEBUG: Method 2 FAILED - Could not read file: ${fileError.message}`);
+    }
+  } else {
+    console.log('📊 DEBUG: Method 2 SKIPPED - No downloadPath found');
+    if (scrapingResults.result) {
+      console.log('📊 DEBUG: result object keys:', Object.keys(scrapingResults.result));
+    }
+  }
+  
+  // Method 2b: Check for other possible file content fields
+  console.log('🔍 DEBUG: Checking Method 2b - Alternative content fields');
+  const possibleContentFields = ['content', 'file_content', 'data', 'csv_content', 'body'];
+  for (const field of possibleContentFields) {
+    if (scrapingResults[field] || (scrapingResults.result && scrapingResults.result[field])) {
+      const content = scrapingResults[field] || scrapingResults.result[field];
+      console.log(`📊 DEBUG: Found ${field} field, length:`, content.length);
+      console.log(`📊 DEBUG: ${field} preview:`, content.substring(0, 200));
+      
+      if (content.length > 100) {
+        console.log(`✅ DEBUG: Method 2b SUCCESS - Using ${field} data`);
+        return content;
+      }
     }
   }
   
   // Method 3: Try alternative scraper endpoint for better data extraction
+  console.log('🔍 DEBUG: Checking Method 3 - Alternative endpoint fallback');
   if (mode === 'daily' && dateParam) {
-    console.log('  🔄 Attempting fallback to /smg-daily endpoint...');
+    console.log('📊 DEBUG: Attempting fallback to /smg-daily endpoint...');
     try {
       const response = await axios.post(`${SCRAPER_URL}/smg-daily`, {}, {
         timeout: 300000
       });
       
+      console.log('📊 DEBUG: Fallback response status:', response.status);
+      console.log('📊 DEBUG: Fallback response data keys:', Object.keys(response.data));
+      
       if (response.data && response.data.csv_data && response.data.csv_data.length > 100) {
-        console.log('  ✅ Got CSV data from /smg-daily fallback');
+        console.log('✅ DEBUG: Method 3 SUCCESS - Got CSV data from /smg-daily fallback');
+        console.log('📊 DEBUG: Fallback csv_data length:', response.data.csv_data.length);
+        console.log('📊 DEBUG: Fallback csv_data preview:', response.data.csv_data.substring(0, 200));
         return response.data.csv_data;
+      } else {
+        console.log('❌ DEBUG: Method 3 FAILED - Fallback endpoint returned insufficient data');
       }
     } catch (fallbackError) {
-      console.log(`  ⚠️ Fallback endpoint failed: ${fallbackError.message}`);
+      console.log(`❌ DEBUG: Method 3 FAILED - Fallback endpoint error: ${fallbackError.message}`);
     }
+  } else {
+    console.log('📊 DEBUG: Method 3 SKIPPED - Not daily mode or no dateParam');
   }
   
-  // Method 4: Final fallback - generate error instead of using mock data
-  console.log('  ❌ Could not extract real CSV data from any source');
+  // Method 4: Check if scraper response contains file content directly
+  console.log('🔍 DEBUG: Checking Method 4 - Direct response analysis');
+  if (typeof scrapingResults === 'string' && scrapingResults.length > 100) {
+    console.log('✅ DEBUG: Method 4 SUCCESS - Response is a string, using as CSV');
+    console.log('📊 DEBUG: String response length:', scrapingResults.length);
+    console.log('📊 DEBUG: String response preview:', scrapingResults.substring(0, 200));
+    return scrapingResults;
+  }
+  
+  // Final fallback - generate error instead of using mock data
+  console.log('❌ DEBUG: ALL METHODS FAILED - Could not extract real CSV data from any source');
+  console.log('📊 DEBUG: Final scrapingResults analysis:');
+  console.log('  - Type:', typeof scrapingResults);
+  console.log('  - Keys:', scrapingResults ? Object.keys(scrapingResults) : 'NULL');
+  console.log('  - Size:', JSON.stringify(scrapingResults).length, 'characters');
+  
   throw new Error('Unable to extract CSV data from scraper response. No valid data found in response.');
 }
 
-// CORE ORCHESTRATION FUNCTION - UPDATED TO USE REAL DATA
+// CORE ORCHESTRATION FUNCTION - UPDATED TO USE REAL DATA WITH DEBUG LOGGING
 async function runOrchestration(mode, dates = null) {
   const orchestrationStart = new Date();
   const orchestrationId = `orch_${Date.now()}`;
@@ -256,7 +321,7 @@ async function runOrchestration(mode, dates = null) {
   };
 
   try {
-    console.log(`🚀 Starting SMG orchestration ${orchestrationId}...`);
+    console.log(`🚀 Starting SMG orchestration ${orchestrationId} with debug logging...`);
     
     // PHASE 1: SCRAPING
     console.log('📥 Phase 1: Starting SMG data scraping...');
@@ -276,6 +341,9 @@ async function runOrchestration(mode, dates = null) {
           timeout: 300000 // 5 minute timeout for scraping
         });
         scrapingResults = response.data;
+        
+        console.log('📊 DEBUG: Scraper response status:', response.status);
+        console.log('📊 DEBUG: Scraper response size:', JSON.stringify(scrapingResults).length, 'characters');
         
         // FIXED: Extract real CSV data instead of using mock data
         csvData = await extractCSVDataFromScraper(scrapingResults, 'daily', dateParam);
@@ -298,6 +366,9 @@ async function runOrchestration(mode, dates = null) {
         });
         scrapingResults = response.data;
         
+        console.log('📊 DEBUG: Backfill scraper response status:', response.status);
+        console.log('📊 DEBUG: Backfill scraper response size:', JSON.stringify(scrapingResults).length, 'characters');
+        
         // Extract real CSV data for backfill
         csvData = await extractCSVDataFromScraper(scrapingResults, 'backfill');
         
@@ -314,7 +385,7 @@ async function runOrchestration(mode, dates = null) {
       
       // Validate we have real CSV data
       if (!csvData || csvData.length < 100) {
-        throw new Error('Scraper returned insufficient CSV data - possible scraping failure');
+        throw new Error(`Scraper returned insufficient CSV data - possible scraping failure. Got ${csvData ? csvData.length : 0} characters.`);
       }
       
       // Count CSV records for validation
@@ -322,6 +393,7 @@ async function runOrchestration(mode, dates = null) {
       const csvRecords = csvLines.length - 1; // Subtract header
       
       console.log(`📊 CSV data extracted: ${csvData.length} characters, ${csvRecords} data records`);
+      console.log(`📊 DEBUG: CSV first 200 characters: ${csvData.substring(0, 200)}`);
       
       orchestrationResults.phases.scraping = {
         status: 'completed',
@@ -357,6 +429,7 @@ async function runOrchestration(mode, dates = null) {
       }
       
       console.log(`📤 Sending ${csvData.length} characters of CSV data to pipeline...`);
+      console.log(`📊 DEBUG: CSV data preview being sent: ${csvData.substring(0, 200)}`);
       
       // Process the scraped data through the pipeline
       const response = await axios.post(`${PIPELINE_URL}/smg-pipeline`, {
@@ -522,7 +595,8 @@ app.get('/status', async (req, res) => {
         fixes_applied: [
           'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
           'Fixed 404 error by removing self-referencing HTTP calls',
-          'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data'
+          'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data',
+          'DEBUG VERSION: Added extensive CSV extraction logging to identify data issue'
         ]
       },
       scheduled_jobs: {
@@ -617,6 +691,7 @@ cron.schedule('30 12 * * *', async () => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 SMG Orchestrator running on port ${PORT}`);
+  console.log('🔍 DEBUG VERSION WITH EXTENSIVE CSV EXTRACTION LOGGING');
   console.log('Service Configuration:');
   console.log('- Scraper URL:', SCRAPER_URL);
   console.log('- Pipeline URL:', PIPELINE_URL);
@@ -625,6 +700,7 @@ app.listen(PORT, () => {
   console.log('- Endpoint fixes: Backfill mode uses GET /smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD');
   console.log('- Internal call fix: Removed self-referencing HTTP calls to prevent 404 errors');
   console.log('- CRITICAL FIX: Now extracts and uses real CSV data from scraper instead of hardcoded test data');
+  console.log('- DEBUG VERSION: Added extensive CSV extraction logging to identify data extraction issue');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
