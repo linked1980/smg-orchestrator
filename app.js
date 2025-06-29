@@ -15,7 +15,7 @@ const PIPELINE_URL = process.env.PIPELINE_URL || 'https://smg-pipeline-phase2-pr
 
 // TEST PAGE ENDPOINT
 app.get('/test', (req, res) => {
-  res.send(`
+  const html = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -68,8 +68,8 @@ app.get('/test', (req, res) => {
         <h3>🔗 Service Links</h3>
         <p>
             <a href="/status" target="_blank">Orchestrator Status</a> | 
-            <a href="${SCRAPER_URL}" target="_blank">Phase 1: Scraper</a> | 
-            <a href="${PIPELINE_URL}" target="_blank">Phase 2: Pipeline</a>
+            <a href="` + SCRAPER_URL + `" target="_blank">Phase 1: Scraper</a> | 
+            <a href="` + PIPELINE_URL + `" target="_blank">Phase 2: Pipeline</a>
         </p>
         <p><strong>Architecture:</strong> Phase 1 (Scraper) → Phase 3 (Orchestrator) → Phase 2 (Pipeline)</p>
     </div>
@@ -136,7 +136,7 @@ app.get('/test', (req, res) => {
                 return;
             }
             
-            resultDiv.textContent = `📊 Running backfill orchestration for ${startDate} to ${endDate}...\\nThis may take several minutes...`;
+            resultDiv.textContent = 'Running backfill orchestration for ' + startDate + ' to ' + endDate + '...\\nThis may take several minutes...';
             resultDiv.className = 'result';
             
             try {
@@ -163,7 +163,8 @@ app.get('/test', (req, res) => {
     </script>
 </body>
 </html>
-  `);
+  `;
+  res.send(html);
 });
 
 // Health check endpoint
@@ -171,7 +172,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SMG Data Orchestrator',
-    version: '1.5.0',
+    version: '1.5.1',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
@@ -187,7 +188,8 @@ app.get('/', (req, res) => {
       'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
       'Fixed 404 error by removing self-referencing HTTP calls',
       'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data',
-      'FIELD NAME FIX: Added support for csvContent field from scraper response'
+      'FIELD NAME FIX: Added support for csvContent field from scraper response',
+      'SYNTAX FIX: Fixed template literal conflict in HTML generation'
     ],
     timestamp: new Date().toISOString()
   });
@@ -612,7 +614,8 @@ app.get('/status', async (req, res) => {
           'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
           'Fixed 404 error by removing self-referencing HTTP calls',
           'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data',
-          'FIELD NAME FIX: Added support for csvContent field from scraper response'
+          'FIELD NAME FIX: Added support for csvContent field from scraper response',
+          'SYNTAX FIX: Fixed template literal conflict in HTML generation'
         ]
       },
       scheduled_jobs: {
@@ -707,7 +710,7 @@ cron.schedule('30 12 * * *', async () => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 SMG Orchestrator running on port ${PORT}`);
-  console.log('🔍 FIELD NAME FIX: Now supports csvContent field from scraper response');
+  console.log('🔍 SYNTAX FIX: Fixed template literal conflict + csvContent support');
   console.log('Service Configuration:');
   console.log('- Scraper URL:', SCRAPER_URL);
   console.log('- Pipeline URL:', PIPELINE_URL);
@@ -717,6 +720,7 @@ app.listen(PORT, () => {
   console.log('- Internal call fix: Removed self-referencing HTTP calls to prevent 404 errors');
   console.log('- CRITICAL FIX: Now extracts and uses real CSV data from scraper instead of hardcoded test data');
   console.log('- FIELD NAME FIX: Added support for csvContent field from scraper response (Method 1b)');
+  console.log('- SYNTAX FIX: Fixed template literal conflict in HTML test page generation');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
