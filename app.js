@@ -36,7 +36,7 @@ app.get('/test', (req, res) => {
 <body>
     <h1>🚀 SMG Orchestrator Test Center</h1>
     <div class="status success">✅ Orchestrator running! Test the complete SMG automation below:</div>
-    <div class="status warning">🔍 DEBUG VERSION: Added extensive CSV extraction logging!</div>
+    <div class="status warning">🔍 FIELD NAME FIX: Now checks for csvContent field from scraper!</div>
     
     <div class="module">
         <h3>📊 System Status Check</h3>
@@ -136,7 +136,7 @@ app.get('/test', (req, res) => {
                 return;
             }
             
-            resultDiv.textContent = \`📊 Running backfill orchestration for \${startDate} to \${endDate}...\\nThis may take several minutes...\`;
+            resultDiv.textContent = `📊 Running backfill orchestration for ${startDate} to ${endDate}...\\nThis may take several minutes...`;
             resultDiv.className = 'result';
             
             try {
@@ -171,7 +171,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SMG Data Orchestrator',
-    version: '1.4.0',
+    version: '1.5.0',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
@@ -187,13 +187,13 @@ app.get('/', (req, res) => {
       'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
       'Fixed 404 error by removing self-referencing HTTP calls',
       'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data',
-      'DEBUG VERSION: Added extensive CSV extraction logging to identify data issue'
+      'FIELD NAME FIX: Added support for csvContent field from scraper response'
     ],
     timestamp: new Date().toISOString()
   });
 });
 
-// ENHANCED CSV DATA EXTRACTION FUNCTION WITH EXTENSIVE DEBUG LOGGING
+// ENHANCED CSV DATA EXTRACTION FUNCTION WITH csvContent FIELD SUPPORT
 async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null) {
   console.log('🔍 DEBUG: extractCSVDataFromScraper() - START');
   console.log('📊 DEBUG: scrapingResults type:', typeof scrapingResults);
@@ -220,6 +220,22 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
     console.log('📊 DEBUG: Method 1 SKIPPED - No csv_data field found');
   }
   
+  // Method 1b: Check for csvContent in result object (FIX for scraper field name mismatch)
+  console.log('🔍 DEBUG: Checking Method 1b - csvContent in result');
+  if (scrapingResults.result && scrapingResults.result.csvContent) {
+    console.log('📊 DEBUG: Found result.csvContent field, length:', scrapingResults.result.csvContent.length);
+    console.log('📊 DEBUG: csvContent preview:', scrapingResults.result.csvContent.substring(0, 200));
+    
+    if (scrapingResults.result.csvContent.length > 100) {
+      console.log('✅ DEBUG: Method 1b SUCCESS - Using csvContent from result');
+      return scrapingResults.result.csvContent;
+    } else {
+      console.log('⚠️ DEBUG: Method 1b REJECTED - csvContent too short');
+    }
+  } else {
+    console.log('📊 DEBUG: Method 1b SKIPPED - No result.csvContent field found');
+  }
+  
   // Method 2: Try to get download path and read file (from /smg-download endpoint)
   console.log('🔍 DEBUG: Checking Method 2 - File download path');
   if (scrapingResults.result && scrapingResults.result.downloadPath) {
@@ -242,7 +258,7 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
   
   // Method 2b: Check for other possible file content fields
   console.log('🔍 DEBUG: Checking Method 2b - Alternative content fields');
-  const possibleContentFields = ['content', 'file_content', 'data', 'csv_content', 'body'];
+  const possibleContentFields = ['content', 'file_content', 'data', 'csv_content', 'csvContent', 'body'];
   for (const field of possibleContentFields) {
     if (scrapingResults[field] || (scrapingResults.result && scrapingResults.result[field])) {
       const content = scrapingResults[field] || scrapingResults.result[field];
@@ -321,7 +337,7 @@ async function runOrchestration(mode, dates = null) {
   };
 
   try {
-    console.log(`🚀 Starting SMG orchestration ${orchestrationId} with debug logging...`);
+    console.log(`🚀 Starting SMG orchestration ${orchestrationId} with csvContent field support...`);
     
     // PHASE 1: SCRAPING
     console.log('📥 Phase 1: Starting SMG data scraping...');
@@ -596,7 +612,7 @@ app.get('/status', async (req, res) => {
           'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
           'Fixed 404 error by removing self-referencing HTTP calls',
           'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data',
-          'DEBUG VERSION: Added extensive CSV extraction logging to identify data issue'
+          'FIELD NAME FIX: Added support for csvContent field from scraper response'
         ]
       },
       scheduled_jobs: {
@@ -691,7 +707,7 @@ cron.schedule('30 12 * * *', async () => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 SMG Orchestrator running on port ${PORT}`);
-  console.log('🔍 DEBUG VERSION WITH EXTENSIVE CSV EXTRACTION LOGGING');
+  console.log('🔍 FIELD NAME FIX: Now supports csvContent field from scraper response');
   console.log('Service Configuration:');
   console.log('- Scraper URL:', SCRAPER_URL);
   console.log('- Pipeline URL:', PIPELINE_URL);
@@ -700,7 +716,7 @@ app.listen(PORT, () => {
   console.log('- Endpoint fixes: Backfill mode uses GET /smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD');
   console.log('- Internal call fix: Removed self-referencing HTTP calls to prevent 404 errors');
   console.log('- CRITICAL FIX: Now extracts and uses real CSV data from scraper instead of hardcoded test data');
-  console.log('- DEBUG VERSION: Added extensive CSV extraction logging to identify data extraction issue');
+  console.log('- FIELD NAME FIX: Added support for csvContent field from scraper response (Method 1b)');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
