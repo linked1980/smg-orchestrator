@@ -13,9 +13,16 @@ app.use(express.json());
 const SCRAPER_URL = process.env.SCRAPER_URL || 'https://cloud-scraper-smg-production.up.railway.app';
 const PIPELINE_URL = process.env.PIPELINE_URL || 'https://smg-pipeline-phase2-production.up.railway.app';
 
+// Configuration for loop strategy
+const LOOP_CONFIG = {
+  daily_lookback_days: 3, // Process last 3 days in daily mode
+  max_parallel_dates: 1,  // Process dates sequentially for reliability
+  retry_failed_dates: false // Keep it simple - no retries initially
+};
+
 // TEST PAGE ENDPOINT
 app.get('/test', (req, res) => {
-  const html = `
+  res.send(`
 <!DOCTYPE html>
 <html>
 <head>
@@ -35,8 +42,8 @@ app.get('/test', (req, res) => {
 </head>
 <body>
     <h1>🚀 SMG Orchestrator Test Center</h1>
-    <div class="status success">✅ Orchestrator running! Test the complete SMG automation below:</div>
-    <div class="status warning">🔧 BACKFILL FIX: Added Method 1c for results[] array extraction!</div>
+    <div class="status success">✅ Orchestrator running with LOOP STRATEGY!</div>
+    <div class="status warning">🔄 NEW: Simple loop iteration around proven working daily logic</div>
     
     <div class="module">
         <h3>📊 System Status Check</h3>
@@ -46,21 +53,21 @@ app.get('/test', (req, res) => {
     </div>
     
     <div class="module">
-        <h3>📅 Daily Orchestration Test</h3>
-        <p>Test complete daily flow (yesterday's data scraping + pipeline processing):</p>
-        <div class="warning">⚠️ This will call the real scraper and pipeline - use carefully!</div>
-        <button onclick="testDaily()">🔄 Test Daily Flow</button>
+        <h3>📅 Daily Orchestration Test (Loop Strategy)</h3>
+        <p>Test complete daily flow processing last ${LOOP_CONFIG.daily_lookback_days} days using proven working logic:</p>
+        <div class="warning">⚠️ This will process real data for multiple dates - each using working 1,650 record logic!</div>
+        <button onclick="testDaily()">🔄 Test Daily Loop (${LOOP_CONFIG.daily_lookback_days} days)</button>
         <div id="dailyResult" class="result">Click button to test...</div>
     </div>
     
     <div class="module">
-        <h3>📋 Backfill Test</h3>
-        <p>Test backfill orchestration for specific dates:</p>
+        <h3>📋 Backfill Test (Loop Strategy)</h3>
+        <p>Test backfill orchestration with date iteration - each date processed independently:</p>
         <label>Start Date:</label> <input type="date" id="startDate" value="2025-06-17">
         <label>End Date:</label> <input type="date" id="endDate" value="2025-06-18">
         <br><br>
-        <div class="warning">⚠️ This will process real data - start with small date ranges!</div>
-        <button onclick="testBackfill()">📊 Test Backfill</button>
+        <div class="warning">⚠️ Each date will be processed using proven working logic!</div>
+        <button onclick="testBackfill()">📊 Test Backfill Loop</button>
         <div id="backfillResult" class="result">Click button to test...</div>
     </div>
 
@@ -68,10 +75,10 @@ app.get('/test', (req, res) => {
         <h3>🔗 Service Links</h3>
         <p>
             <a href="/status" target="_blank">Orchestrator Status</a> | 
-            <a href="` + SCRAPER_URL + `" target="_blank">Phase 1: Scraper</a> | 
-            <a href="` + PIPELINE_URL + `" target="_blank">Phase 2: Pipeline</a>
+            <a href="${SCRAPER_URL}" target="_blank">Phase 1: Scraper</a> | 
+            <a href="${PIPELINE_URL}" target="_blank">Phase 2: Pipeline</a>
         </p>
-        <p><strong>Architecture:</strong> Phase 1 (Scraper) → Phase 3 (Orchestrator) → Phase 2 (Pipeline)</p>
+        <p><strong>Architecture:</strong> Phase 1 (Scraper) → Phase 3 (Orchestrator with Loops) → Phase 2 (Pipeline)</p>
     </div>
 
     <script>
@@ -101,7 +108,7 @@ app.get('/test', (req, res) => {
         
         async function testDaily() {
             const resultDiv = document.getElementById('dailyResult');
-            resultDiv.textContent = '🔄 Running daily orchestration...\\nThis may take several minutes...';
+            resultDiv.textContent = '🔄 Running daily loop orchestration...\\nThis may take several minutes per date...';
             resultDiv.className = 'result';
             
             try {
@@ -113,10 +120,10 @@ app.get('/test', (req, res) => {
                 const result = await response.json();
                 
                 if (response.ok) {
-                    resultDiv.textContent = '✅ Daily Orchestration Success:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.textContent = '✅ Daily Loop Orchestration Success:\\n\\n' + JSON.stringify(result, null, 2);
                     resultDiv.style.background = '#d4edda';
                 } else {
-                    resultDiv.textContent = '❌ Daily Orchestration Error:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.textContent = '❌ Daily Loop Orchestration Error:\\n\\n' + JSON.stringify(result, null, 2);
                     resultDiv.style.background = '#f8d7da';
                 }
             } catch (error) {
@@ -136,7 +143,7 @@ app.get('/test', (req, res) => {
                 return;
             }
             
-            resultDiv.textContent = 'Running backfill orchestration for ' + startDate + ' to ' + endDate + '...\\nThis may take several minutes...';
+            resultDiv.textContent = `📊 Running backfill loop orchestration for ${startDate} to ${endDate}...\\nThis may take several minutes per date...`;
             resultDiv.className = 'result';
             
             try {
@@ -149,10 +156,10 @@ app.get('/test', (req, res) => {
                 const result = await response.json();
                 
                 if (response.ok) {
-                    resultDiv.textContent = '✅ Backfill Orchestration Success:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.textContent = '✅ Backfill Loop Orchestration Success:\\n\\n' + JSON.stringify(result, null, 2);
                     resultDiv.style.background = '#d4edda';
                 } else {
-                    resultDiv.textContent = '❌ Backfill Orchestration Error:\\n\\n' + JSON.stringify(result, null, 2);
+                    resultDiv.textContent = '❌ Backfill Loop Orchestration Error:\\n\\n' + JSON.stringify(result, null, 2);
                     resultDiv.style.background = '#f8d7da';
                 }
             } catch (error) {
@@ -163,20 +170,20 @@ app.get('/test', (req, res) => {
     </script>
 </body>
 </html>
-  `;
-  res.send(html);
+  `);
 });
 
 // Health check endpoint
 app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
-    service: 'SMG Data Orchestrator',
-    version: '1.6.0',
+    service: 'SMG Data Orchestrator - Loop Strategy',
+    version: '2.0.0',
+    strategy: 'Simple loop iteration around proven working daily logic',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
-      '/orchestrate/backfill': 'POST - Backfill date range',
-      '/orchestrate/daily': 'POST - Run daily data scraping and processing',
+      '/orchestrate/backfill': 'POST - Backfill date range with loop iteration',
+      '/orchestrate/daily': 'POST - Run daily data scraping for last 3 days with loop iteration',
       '/status': 'GET - Service status and health checks',
       '/test': 'GET - Test page for browser testing'
     },
@@ -184,28 +191,25 @@ app.get('/', (req, res) => {
       scraper: SCRAPER_URL,
       pipeline: PIPELINE_URL
     },
+    loop_configuration: LOOP_CONFIG,
     fixes_applied: [
-      'Now uses correct scraper endpoints: /smg-download and GET /smg-backfill',
-      'Fixed 404 error by removing self-referencing HTTP calls',
-      'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data',
-      'FIELD NAME FIX: Added support for csvContent field from scraper response',
-      'SYNTAX FIX: Fixed template literal conflict in HTML generation',
-      'BACKFILL FIX: Added Method 1c for extracting CSV from results[] array structure'
+      'REVERTED to proven working Method 1b (result.csvContent) from commit a43b0d3a',
+      'ADDED simple loop wrapper around working daily orchestration logic',
+      'MAINTAINED all working CSV extraction that processes 1,650 records successfully',
+      'ENHANCED with date iteration for both daily (last 3 days) and backfill modes',
+      'ISOLATED each date processing for better debugging and fail-safe operation'
     ],
     timestamp: new Date().toISOString()
   });
 });
 
-// ENHANCED CSV DATA EXTRACTION FUNCTION WITH BACKFILL ARRAY SUPPORT
+// ENHANCED CSV DATA EXTRACTION FUNCTION - REVERTED TO WORKING VERSION
 async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null) {
   console.log('🔍 DEBUG: extractCSVDataFromScraper() - START');
   console.log('📊 DEBUG: scrapingResults type:', typeof scrapingResults);
   console.log('📊 DEBUG: scrapingResults keys:', scrapingResults ? Object.keys(scrapingResults) : 'NULL');
   console.log('📊 DEBUG: mode:', mode);
   console.log('📊 DEBUG: dateParam:', dateParam);
-  
-  // Log full scraping results for analysis
-  console.log('📊 DEBUG: Full scrapingResults:', JSON.stringify(scrapingResults, null, 2));
   
   // Method 1: Check if CSV data is directly provided (from /smg-daily endpoint)
   console.log('🔍 DEBUG: Checking Method 1 - Direct CSV data');
@@ -223,14 +227,14 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
     console.log('📊 DEBUG: Method 1 SKIPPED - No csv_data field found');
   }
   
-  // Method 1b: Check for csvContent in result object (FIX for scraper field name mismatch)
-  console.log('🔍 DEBUG: Checking Method 1b - csvContent in result');
+  // Method 1b: Check for csvContent in result object (PROVEN WORKING FIX)
+  console.log('🔍 DEBUG: Checking Method 1b - csvContent in result (PROVEN WORKING)');
   if (scrapingResults.result && scrapingResults.result.csvContent) {
     console.log('📊 DEBUG: Found result.csvContent field, length:', scrapingResults.result.csvContent.length);
     console.log('📊 DEBUG: csvContent preview:', scrapingResults.result.csvContent.substring(0, 200));
     
     if (scrapingResults.result.csvContent.length > 100) {
-      console.log('✅ DEBUG: Method 1b SUCCESS - Using csvContent from result');
+      console.log('✅ DEBUG: Method 1b SUCCESS - Using csvContent from result (PROVEN WORKING)');
       return scrapingResults.result.csvContent;
     } else {
       console.log('⚠️ DEBUG: Method 1b REJECTED - csvContent too short');
@@ -239,57 +243,7 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
     console.log('📊 DEBUG: Method 1b SKIPPED - No result.csvContent field found');
   }
   
-  // Method 1c: Check for csvContent in results array (FIX for backfill response structure)
-  console.log('🔍 DEBUG: Checking Method 1c - csvContent in results array (backfill mode)');
-  if (scrapingResults.results && Array.isArray(scrapingResults.results)) {
-    console.log('📊 DEBUG: Found results array with length:', scrapingResults.results.length);
-    
-    const csvDataParts = [];
-    let successfulResults = 0;
-    
-    scrapingResults.results.forEach((result, index) => {
-      console.log(`📊 DEBUG: Processing result ${index}: success=${result.success}, has csvContent=${!!result.csvContent}`);
-      
-      if (result.success && result.csvContent && result.csvContent.length > 100) {
-        console.log(`📊 DEBUG: Adding csvContent from result ${index}, length: ${result.csvContent.length}`);
-        csvDataParts.push(result.csvContent);
-        successfulResults++;
-      } else if (result.csvContent) {
-        console.log(`⚠️ DEBUG: Skipping result ${index} - csvContent too short (${result.csvContent.length} chars)`);
-      }
-    });
-    
-    if (csvDataParts.length > 0) {
-      // For multiple CSV files, we need to combine them intelligently
-      // Take the header from the first file, then append data rows from all files
-      let combinedCSV = '';
-      
-      csvDataParts.forEach((csvData, index) => {
-        const lines = csvData.split('\n').filter(line => line.trim());
-        
-        if (index === 0) {
-          // First file: include everything (header + data)
-          combinedCSV = csvData;
-        } else {
-          // Subsequent files: skip the header lines (first 3 lines) and append data
-          if (lines.length > 3) {
-            const dataLines = lines.slice(3); // Skip title + 2 header lines
-            combinedCSV += '\n' + dataLines.join('\n');
-          }
-        }
-      });
-      
-      console.log(`✅ DEBUG: Method 1c SUCCESS - Combined ${csvDataParts.length} CSV files into ${combinedCSV.length} characters`);
-      console.log(`📊 DEBUG: Combined CSV preview: ${combinedCSV.substring(0, 200)}`);
-      return combinedCSV;
-    } else {
-      console.log('❌ DEBUG: Method 1c FAILED - No successful results with valid csvContent found');
-    }
-  } else {
-    console.log('📊 DEBUG: Method 1c SKIPPED - No results array found');
-  }
-  
-  // Method 2: Try to get download path and read file (from /smg-download endpoint)
+  // Method 2: Try to get download path and read file
   console.log('🔍 DEBUG: Checking Method 2 - File download path');
   if (scrapingResults.result && scrapingResults.result.downloadPath) {
     console.log('📊 DEBUG: Found downloadPath:', scrapingResults.result.downloadPath);
@@ -304,61 +258,6 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
     }
   } else {
     console.log('📊 DEBUG: Method 2 SKIPPED - No downloadPath found');
-    if (scrapingResults.result) {
-      console.log('📊 DEBUG: result object keys:', Object.keys(scrapingResults.result));
-    }
-  }
-  
-  // Method 2b: Check for other possible file content fields
-  console.log('🔍 DEBUG: Checking Method 2b - Alternative content fields');
-  const possibleContentFields = ['content', 'file_content', 'data', 'csv_content', 'csvContent', 'body'];
-  for (const field of possibleContentFields) {
-    if (scrapingResults[field] || (scrapingResults.result && scrapingResults.result[field])) {
-      const content = scrapingResults[field] || scrapingResults.result[field];
-      console.log(`📊 DEBUG: Found ${field} field, length:`, content.length);
-      console.log(`📊 DEBUG: ${field} preview:`, content.substring(0, 200));
-      
-      if (content.length > 100) {
-        console.log(`✅ DEBUG: Method 2b SUCCESS - Using ${field} data`);
-        return content;
-      }
-    }
-  }
-  
-  // Method 3: Try alternative scraper endpoint for better data extraction
-  console.log('🔍 DEBUG: Checking Method 3 - Alternative endpoint fallback');
-  if (mode === 'daily' && dateParam) {
-    console.log('📊 DEBUG: Attempting fallback to /smg-daily endpoint...');
-    try {
-      const response = await axios.post(`${SCRAPER_URL}/smg-daily`, {}, {
-        timeout: 300000
-      });
-      
-      console.log('📊 DEBUG: Fallback response status:', response.status);
-      console.log('📊 DEBUG: Fallback response data keys:', Object.keys(response.data));
-      
-      if (response.data && response.data.csv_data && response.data.csv_data.length > 100) {
-        console.log('✅ DEBUG: Method 3 SUCCESS - Got CSV data from /smg-daily fallback');
-        console.log('📊 DEBUG: Fallback csv_data length:', response.data.csv_data.length);
-        console.log('📊 DEBUG: Fallback csv_data preview:', response.data.csv_data.substring(0, 200));
-        return response.data.csv_data;
-      } else {
-        console.log('❌ DEBUG: Method 3 FAILED - Fallback endpoint returned insufficient data');
-      }
-    } catch (fallbackError) {
-      console.log(`❌ DEBUG: Method 3 FAILED - Fallback endpoint error: ${fallbackError.message}`);
-    }
-  } else {
-    console.log('📊 DEBUG: Method 3 SKIPPED - Not daily mode or no dateParam');
-  }
-  
-  // Method 4: Check if scraper response contains file content directly
-  console.log('🔍 DEBUG: Checking Method 4 - Direct response analysis');
-  if (typeof scrapingResults === 'string' && scrapingResults.length > 100) {
-    console.log('✅ DEBUG: Method 4 SUCCESS - Response is a string, using as CSV');
-    console.log('📊 DEBUG: String response length:', scrapingResults.length);
-    console.log('📊 DEBUG: String response preview:', scrapingResults.substring(0, 200));
-    return scrapingResults;
   }
   
   // Final fallback - generate error instead of using mock data
@@ -371,13 +270,14 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
   throw new Error('Unable to extract CSV data from scraper response. No valid data found in response.');
 }
 
-// CORE ORCHESTRATION FUNCTION - UPDATED TO USE REAL DATA WITH DEBUG LOGGING
-async function runOrchestration(mode, dates = null) {
+// SINGLE DATE ORCHESTRATION FUNCTION - REVERTED TO PROVEN WORKING VERSION
+async function runSingleDateOrchestration(targetDate) {
   const orchestrationStart = new Date();
-  const orchestrationId = `orch_${Date.now()}`;
+  const orchestrationId = `single_${targetDate}_${Date.now()}`;
   
   let orchestrationResults = {
     orchestration_id: orchestrationId,
+    target_date: targetDate,
     status: 'running',
     started_at: orchestrationStart.toISOString(),
     phases: {
@@ -390,79 +290,44 @@ async function runOrchestration(mode, dates = null) {
   };
 
   try {
-    console.log(`🚀 Starting SMG orchestration ${orchestrationId} with backfill array support...`);
+    console.log(`🚀 Starting single date SMG orchestration ${orchestrationId} for ${targetDate}...`);
     
     // PHASE 1: SCRAPING
-    console.log('📥 Phase 1: Starting SMG data scraping...');
+    console.log(`📥 Phase 1: Starting SMG data scraping for ${targetDate}...`);
     const scrapingStart = Date.now();
     
     let scrapingResults;
     let csvData;
     try {
-      if (mode === 'daily') {
-        // Use /smg-download endpoint for yesterday's data
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const dateParam = yesterday.toISOString().split('T')[0]; // YYYY-MM-DD format
-        
-        console.log(`📅 Scraping daily data for: ${dateParam}`);
-        const response = await axios.get(`${SCRAPER_URL}/smg-download?date=${dateParam}`, {
-          timeout: 300000 // 5 minute timeout for scraping
-        });
-        scrapingResults = response.data;
-        
-        console.log('📊 DEBUG: Scraper response status:', response.status);
-        console.log('📊 DEBUG: Scraper response size:', JSON.stringify(scrapingResults).length, 'characters');
-        
-        // FIXED: Extract real CSV data instead of using mock data
-        csvData = await extractCSVDataFromScraper(scrapingResults, 'daily', dateParam);
-        
-        // Convert single download result to expected format
-        if (scrapingResults.status === 'success' || scrapingResults.result) {
-          scrapingResults.files_processed = 1;
-          scrapingResults.dates_processed = [dateParam];
-          scrapingResults.csv_data = csvData;
-        }
-        
-      } else if (mode === 'backfill' && dates) {
-        // Use /smg-backfill endpoint with query parameters
-        const startDate = dates[0];
-        const endDate = dates[dates.length - 1];
-        
-        console.log(`📊 Scraping backfill data from: ${startDate} to ${endDate}`);
-        const response = await axios.get(`${SCRAPER_URL}/smg-backfill?start=${startDate}&end=${endDate}`, {
-          timeout: 600000 // 10 minute timeout for backfill
-        });
-        scrapingResults = response.data;
-        
-        console.log('📊 DEBUG: Backfill scraper response status:', response.status);
-        console.log('📊 DEBUG: Backfill scraper response size:', JSON.stringify(scrapingResults).length, 'characters');
-        
-        // Extract real CSV data for backfill - NOW WITH METHOD 1c SUPPORT
-        csvData = await extractCSVDataFromScraper(scrapingResults, 'backfill');
-        
-        // Convert backfill result to expected format
-        if (scrapingResults.status === 'success') {
-          scrapingResults.files_processed = scrapingResults.summary?.successCount || scrapingResults.files_processed || 0;
-          scrapingResults.dates_processed = dates;
-          scrapingResults.csv_data = csvData;
-        }
-        
-      } else {
-        throw new Error('Invalid mode or missing dates for backfill');
+      console.log(`📅 Scraping daily data for: ${targetDate}`);
+      const response = await axios.get(`${SCRAPER_URL}/smg-download?date=${targetDate}`, {
+        timeout: 300000 // 5 minute timeout for scraping
+      });
+      scrapingResults = response.data;
+      
+      console.log('📊 DEBUG: Scraper response status:', response.status);
+      console.log('📊 DEBUG: Scraper response size:', JSON.stringify(scrapingResults).length, 'characters');
+      
+      // PROVEN: Extract real CSV data using working Method 1b
+      csvData = await extractCSVDataFromScraper(scrapingResults, 'daily', targetDate);
+      
+      // Convert single download result to expected format
+      if (scrapingResults.status === 'success' || scrapingResults.result) {
+        scrapingResults.files_processed = 1;
+        scrapingResults.dates_processed = [targetDate];
+        scrapingResults.csv_data = csvData;
       }
       
       // Validate we have real CSV data
       if (!csvData || csvData.length < 100) {
-        throw new Error(`Scraper returned insufficient CSV data - possible scraping failure. Got ${csvData ? csvData.length : 0} characters.`);
+        throw new Error(`Scraper returned insufficient CSV data for ${targetDate} - possible scraping failure. Got ${csvData ? csvData.length : 0} characters.`);
       }
       
       // Count CSV records for validation
       const csvLines = csvData.split('\n').filter(line => line.trim().length > 0);
       const csvRecords = csvLines.length - 1; // Subtract header
       
-      console.log(`📊 CSV data extracted: ${csvData.length} characters, ${csvRecords} data records`);
-      console.log(`📊 DEBUG: CSV first 200 characters: ${csvData.substring(0, 200)}`);
+      console.log(`📊 CSV data extracted for ${targetDate}: ${csvData.length} characters, ${csvRecords} data records`);
       
       orchestrationResults.phases.scraping = {
         status: 'completed',
@@ -471,40 +336,38 @@ async function runOrchestration(mode, dates = null) {
         dates_processed: scrapingResults.dates_processed || [],
         csv_records_extracted: csvRecords,
         csv_data_size: csvData.length,
-        scraper_endpoint_used: mode === 'daily' ? '/smg-download' : '/smg-backfill',
-        extraction_method: mode === 'backfill' ? 'Method_1c_results_array' : 'Method_1b_result_object'
+        scraper_endpoint_used: `/smg-download?date=${targetDate}`
       };
       
-      console.log(`✅ Phase 1 complete: ${scrapingResults.files_processed || 0} files scraped, ${csvRecords} records extracted`);
+      console.log(`✅ Phase 1 complete for ${targetDate}: ${scrapingResults.files_processed || 0} files scraped, ${csvRecords} records extracted`);
       
     } catch (error) {
       orchestrationResults.phases.scraping = {
         status: 'failed',
         duration_ms: Date.now() - scrapingStart,
         error: error.message,
-        scraper_url_attempted: mode === 'daily' ? `${SCRAPER_URL}/smg-download` : `${SCRAPER_URL}/smg-backfill`
+        scraper_url_attempted: `${SCRAPER_URL}/smg-download?date=${targetDate}`
       };
-      orchestrationResults.errors.push(`Scraping failed: ${error.message}`);
+      orchestrationResults.errors.push(`Scraping failed for ${targetDate}: ${error.message}`);
       throw error;
     }
     
     // PHASE 2: PROCESSING
-    console.log('🔄 Phase 2: Starting data processing...');
+    console.log(`🔄 Phase 2: Starting data processing for ${targetDate}...`);
     const processingStart = Date.now();
     
     try {
       // Check if we have CSV data to process
       if (!csvData || csvData.length === 0) {
-        throw new Error('No CSV data available for processing');
+        throw new Error(`No CSV data available for processing ${targetDate}`);
       }
       
-      console.log(`📤 Sending ${csvData.length} characters of CSV data to pipeline...`);
-      console.log(`📊 DEBUG: CSV data preview being sent: ${csvData.substring(0, 200)}`);
+      console.log(`📤 Sending ${csvData.length} characters of CSV data to pipeline for ${targetDate}...`);
       
       // Process the scraped data through the pipeline
       const response = await axios.post(`${PIPELINE_URL}/smg-pipeline`, {
         csvData: csvData,
-        uploadMode: mode === 'daily' ? 'replace' : 'upsert'
+        uploadMode: 'upsert' // Use upsert for single date processing
       }, {
         timeout: 120000 // 2 minute timeout for processing
       });
@@ -521,7 +384,7 @@ async function runOrchestration(mode, dates = null) {
       
       orchestrationResults.records_processed = processingResults.pipeline_results?.records_processed || 0;
       
-      console.log(`✅ Phase 2 complete: ${orchestrationResults.records_processed} records processed`);
+      console.log(`✅ Phase 2 complete for ${targetDate}: ${orchestrationResults.records_processed} records processed`);
       
     } catch (error) {
       orchestrationResults.phases.processing = {
@@ -529,7 +392,7 @@ async function runOrchestration(mode, dates = null) {
         duration_ms: Date.now() - processingStart,
         error: error.message
       };
-      orchestrationResults.errors.push(`Processing failed: ${error.message}`);
+      orchestrationResults.errors.push(`Processing failed for ${targetDate}: ${error.message}`);
       throw error;
     }
     
@@ -538,24 +401,26 @@ async function runOrchestration(mode, dates = null) {
     orchestrationResults.completed_at = new Date().toISOString();
     orchestrationResults.total_duration_ms = Date.now() - orchestrationStart.getTime();
     
-    console.log(`🎉 SMG Orchestration complete: ${orchestrationResults.records_processed} records in ${orchestrationResults.total_duration_ms}ms`);
+    console.log(`🎉 SMG Orchestration complete for ${targetDate}: ${orchestrationResults.records_processed} records in ${orchestrationResults.total_duration_ms}ms`);
     
     return {
       success: true,
+      date: targetDate,
       orchestration: orchestrationResults,
       timestamp: new Date().toISOString()
     };
     
   } catch (error) {
-    console.error('❌ SMG orchestration error:', error);
+    console.error(`❌ SMG orchestration error for ${targetDate}:`, error);
     
     orchestrationResults.status = 'failed';
     orchestrationResults.completed_at = new Date().toISOString();
     orchestrationResults.total_duration_ms = Date.now() - orchestrationStart.getTime();
     orchestrationResults.final_error = error.message;
     
-    throw {
+    return {
       success: false,
+      date: targetDate,
       orchestration: orchestrationResults,
       error: 'Orchestration failed',
       message: error.message,
@@ -564,47 +429,156 @@ async function runOrchestration(mode, dates = null) {
   }
 }
 
-// MAIN ORCHESTRATION ENDPOINT
+// ENHANCED LOOP ORCHESTRATION FUNCTION - NEW SIMPLE STRATEGY
+async function runLoopOrchestration(mode, dates = null) {
+  const loopStart = new Date();
+  const loopId = `loop_${mode}_${Date.now()}`;
+  
+  let targetDates = [];
+  
+  // Generate target dates based on mode
+  if (mode === 'daily') {
+    // Process last N days (configurable)
+    const today = new Date();
+    for (let i = 1; i <= LOOP_CONFIG.daily_lookback_days; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      targetDates.push(date.toISOString().split('T')[0]);
+    }
+    console.log(`📅 Daily mode: Processing last ${LOOP_CONFIG.daily_lookback_days} days: ${targetDates.join(', ')}`);
+  } else if (mode === 'backfill' && dates) {
+    targetDates = Array.isArray(dates) ? dates : [dates];
+    console.log(`📊 Backfill mode: Processing ${targetDates.length} dates: ${targetDates.join(', ')}`);
+  } else {
+    throw new Error('Invalid mode or missing dates for backfill');
+  }
+  
+  let loopResults = {
+    loop_id: loopId,
+    mode: mode,
+    target_dates: targetDates,
+    status: 'running',
+    started_at: loopStart.toISOString(),
+    date_results: [],
+    summary: {
+      total_dates: targetDates.length,
+      successful_dates: 0,
+      failed_dates: 0,
+      total_records_processed: 0,
+      total_duration_ms: 0
+    },
+    errors: []
+  };
+  
+  try {
+    console.log(`🔄 Starting loop orchestration ${loopId} for ${targetDates.length} dates...`);
+    
+    // Process each date using proven working daily logic
+    for (let i = 0; i < targetDates.length; i++) {
+      const targetDate = targetDates[i];
+      console.log(`\n🎯 Processing date ${i + 1}/${targetDates.length}: ${targetDate}`);
+      
+      try {
+        // Use proven working single date orchestration
+        const dateResult = await runSingleDateOrchestration(targetDate);
+        
+        loopResults.date_results.push(dateResult);
+        
+        if (dateResult.success) {
+          loopResults.summary.successful_dates++;
+          loopResults.summary.total_records_processed += dateResult.orchestration.records_processed || 0;
+          console.log(`✅ Date ${targetDate} completed: ${dateResult.orchestration.records_processed} records`);
+        } else {
+          loopResults.summary.failed_dates++;
+          loopResults.errors.push(`Date ${targetDate}: ${dateResult.message}`);
+          console.log(`❌ Date ${targetDate} failed: ${dateResult.message}`);
+        }
+        
+      } catch (dateError) {
+        loopResults.summary.failed_dates++;
+        loopResults.errors.push(`Date ${targetDate}: ${dateError.message}`);
+        loopResults.date_results.push({
+          success: false,
+          date: targetDate,
+          error: dateError.message,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`❌ Date ${targetDate} failed with exception: ${dateError.message}`);
+      }
+    }
+    
+    // LOOP COMPLETION
+    loopResults.status = loopResults.summary.failed_dates === 0 ? 'completed' : 'completed_with_errors';
+    loopResults.completed_at = new Date().toISOString();
+    loopResults.summary.total_duration_ms = Date.now() - loopStart.getTime();
+    
+    console.log(`🎉 Loop orchestration complete: ${loopResults.summary.successful_dates}/${loopResults.summary.total_dates} dates successful, ${loopResults.summary.total_records_processed} total records processed`);
+    
+    return {
+      success: loopResults.summary.failed_dates === 0,
+      loop: loopResults,
+      timestamp: new Date().toISOString()
+    };
+    
+  } catch (error) {
+    console.error('❌ Loop orchestration error:', error);
+    
+    loopResults.status = 'failed';
+    loopResults.completed_at = new Date().toISOString();
+    loopResults.summary.total_duration_ms = Date.now() - loopStart.getTime();
+    loopResults.final_error = error.message;
+    
+    throw {
+      success: false,
+      loop: loopResults,
+      error: 'Loop orchestration failed',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+// MAIN ORCHESTRATION ENDPOINT - ENHANCED WITH LOOP STRATEGY
 app.post('/orchestrate', async (req, res) => {
   try {
     const { dates, mode = 'daily' } = req.body;
-    const result = await runOrchestration(mode, dates);
+    const result = await runLoopOrchestration(mode, dates);
     res.json(result);
   } catch (error) {
     res.status(500).json(error);
   }
 });
 
-// DAILY ORCHESTRATION ENDPOINT - FIXED VERSION
+// DAILY ORCHESTRATION ENDPOINT - ENHANCED WITH LOOP STRATEGY
 app.post('/orchestrate/daily', async (req, res) => {
-  console.log('📅 Daily SMG orchestration triggered...');
+  console.log(`📅 Daily SMG orchestration triggered with loop strategy (${LOOP_CONFIG.daily_lookback_days} days)...`);
   
   try {
-    // Call core orchestration function directly instead of HTTP call
-    const result = await runOrchestration('daily');
+    // Call enhanced loop orchestration function
+    const result = await runLoopOrchestration('daily');
     
     res.json({
       success: true,
-      message: 'Daily orchestration completed',
+      message: `Daily loop orchestration completed for ${LOOP_CONFIG.daily_lookback_days} days`,
       results: result,
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('❌ Daily orchestration error:', error);
+    console.error('❌ Daily loop orchestration error:', error);
     res.status(500).json({
       success: false,
-      error: 'Daily orchestration failed',
-      message: error.message || (error.orchestration ? error.orchestration.final_error : 'Unknown error'),
-      orchestration_details: error.orchestration || null,
+      error: 'Daily loop orchestration failed',
+      message: error.message || (error.loop ? error.loop.final_error : 'Unknown error'),
+      loop_details: error.loop || null,
       timestamp: new Date().toISOString()
     });
   }
 });
 
-// BACKFILL ORCHESTRATION ENDPOINT - FIXED VERSION
+// BACKFILL ORCHESTRATION ENDPOINT - ENHANCED WITH LOOP STRATEGY
 app.post('/orchestrate/backfill', async (req, res) => {
-  console.log('📊 Backfill SMG orchestration triggered...');
+  console.log('📊 Backfill SMG orchestration triggered with loop strategy...');
   
   const { startDate, endDate, dates } = req.body;
   
@@ -623,24 +597,24 @@ app.post('/orchestrate/backfill', async (req, res) => {
       targetDates = generateDateRange(startDate, endDate);
     }
     
-    // Call core orchestration function directly instead of HTTP call
-    const result = await runOrchestration('backfill', targetDates);
+    // Call enhanced loop orchestration function
+    const result = await runLoopOrchestration('backfill', targetDates);
     
     res.json({
       success: true,
-      message: `Backfill orchestration completed for ${targetDates.length} dates`,
+      message: `Backfill loop orchestration completed for ${targetDates.length} dates`,
       dates_processed: targetDates,
       results: result,
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    console.error('❌ Backfill orchestration error:', error);
+    console.error('❌ Backfill loop orchestration error:', error);
     res.status(500).json({
       success: false,
-      error: 'Backfill orchestration failed',
-      message: error.message || (error.orchestration ? error.orchestration.final_error : 'Unknown error'),
-      orchestration_details: error.orchestration || null,
+      error: 'Backfill loop orchestration failed',
+      message: error.message || (error.loop ? error.loop.final_error : 'Unknown error'),
+      loop_details: error.loop || null,
       timestamp: new Date().toISOString()
     });
   }
@@ -662,20 +636,21 @@ app.get('/status', async (req, res) => {
         pipeline_url: PIPELINE_URL,
         node_version: process.version,
         environment: process.env.NODE_ENV || 'production',
+        loop_strategy: LOOP_CONFIG,
         fixes_applied: [
-          'Using correct scraper endpoints: /smg-download and GET /smg-backfill',
-          'Fixed 404 error by removing self-referencing HTTP calls',
-          'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data',
-          'FIELD NAME FIX: Added support for csvContent field from scraper response',
-          'SYNTAX FIX: Fixed template literal conflict in HTML generation',
-          'BACKFILL FIX: Added Method 1c for extracting CSV from results[] array structure'
+          'REVERTED to proven working Method 1b (result.csvContent) from commit a43b0d3a',
+          'ADDED simple loop wrapper around working daily orchestration logic',
+          'ENHANCED with date iteration for reliable multi-date processing',
+          'MAINTAINED all working CSV extraction that processes 1,650 records successfully',
+          'ISOLATED each date processing for better debugging and fail-safe operation'
         ]
       },
       scheduled_jobs: {
         daily_automation: {
           enabled: false, // Will be enabled when cron is set up
           schedule: '30 12 * * *', // 8:30 AM ET (12:30 UTC)
-          next_run: 'Not scheduled'
+          next_run: 'Not scheduled',
+          loop_configuration: `Will process last ${LOOP_CONFIG.daily_lookback_days} days when enabled`
         }
       }
     };
@@ -743,17 +718,17 @@ function generateDateRange(startDate, endDate) {
   return dates;
 }
 
-// SCHEDULED AUTOMATION (8:30 AM ET = 12:30 UTC)
+// SCHEDULED AUTOMATION (8:30 AM ET = 12:30 UTC) - Enhanced with loop strategy
 // Commented out initially - will enable after testing
 /*
 cron.schedule('30 12 * * *', async () => {
-  console.log('⏰ Scheduled daily SMG orchestration starting...');
+  console.log(`⏰ Scheduled daily SMG loop orchestration starting (${LOOP_CONFIG.daily_lookback_days} days)...`);
   
   try {
-    const result = await runOrchestration('daily');
-    console.log('✅ Scheduled orchestration completed:', result);
+    const result = await runLoopOrchestration('daily');
+    console.log('✅ Scheduled loop orchestration completed:', result);
   } catch (error) {
-    console.error('❌ Scheduled orchestration failed:', error.message);
+    console.error('❌ Scheduled loop orchestration failed:', error.message);
   }
 }, {
   timezone: 'America/New_York'
@@ -763,24 +738,22 @@ cron.schedule('30 12 * * *', async () => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 SMG Orchestrator running on port ${PORT}`);
-  console.log('🔧 BACKFILL FIX: Added Method 1c for results[] array extraction');
+  console.log('🔄 LOOP STRATEGY: Simple iteration around proven working daily logic');
   console.log('Service Configuration:');
   console.log('- Scraper URL:', SCRAPER_URL);
   console.log('- Pipeline URL:', PIPELINE_URL);
-  console.log('\nFixes Applied:');
-  console.log('- Endpoint fixes: Daily mode uses GET /smg-download?date=YYYY-MM-DD');
-  console.log('- Endpoint fixes: Backfill mode uses GET /smg-backfill?start=YYYY-MM-DD&end=YYYY-MM-DD');
-  console.log('- Internal call fix: Removed self-referencing HTTP calls to prevent 404 errors');
-  console.log('- CRITICAL FIX: Now extracts and uses real CSV data from scraper instead of hardcoded test data');
-  console.log('- FIELD NAME FIX: Added support for csvContent field from scraper response (Method 1b)');
-  console.log('- SYNTAX FIX: Fixed template literal conflict in HTML test page generation');
-  console.log('- BACKFILL FIX: Added Method 1c for extracting CSV from results[] array structure');
+  console.log('- Loop Configuration:', JSON.stringify(LOOP_CONFIG, null, 2));
+  console.log('\nLoop Strategy:');
+  console.log('- Foundation: Reverted to proven working Method 1b (result.csvContent)');
+  console.log('- Daily mode: Process last', LOOP_CONFIG.daily_lookback_days, 'days using working logic');
+  console.log('- Backfill mode: Iterate through date range using working logic');
+  console.log('- Reliability: Each date processed independently with proven 1,650 record logic');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
-  console.log('- POST /orchestrate - Main orchestration');
-  console.log('- POST /orchestrate/daily - Daily automation');
-  console.log('- POST /orchestrate/backfill - Backfill date ranges');
+  console.log('- POST /orchestrate - Main loop orchestration');
+  console.log('- POST /orchestrate/daily - Daily loop automation (last', LOOP_CONFIG.daily_lookback_days, 'days)');
+  console.log('- POST /orchestrate/backfill - Backfill date ranges with loop iteration');
   console.log('- GET  /status     - System status');
 });
 
