@@ -36,7 +36,7 @@ app.get('/test', (req, res) => {
 <body>
     <h1>🚀 SMG Orchestrator Test Center</h1>
     <div class="status success">✅ Orchestrator running! Test the complete SMG automation below:</div>
-    <div class="status warning">🔍 FIELD NAME FIX: Now checks for csvContent field from scraper!</div>
+    <div class="status warning">🔧 BACKFILL FIX: Added Method 1c for results[] array extraction!</div>
     
     <div class="module">
         <h3>📊 System Status Check</h3>
@@ -172,7 +172,7 @@ app.get('/', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'SMG Data Orchestrator',
-    version: '1.5.1',
+    version: '1.6.0',
     endpoints: {
       '/orchestrate': 'POST - Run complete SMG data flow',
       '/orchestrate/backfill': 'POST - Backfill date range',
@@ -189,13 +189,14 @@ app.get('/', (req, res) => {
       'Fixed 404 error by removing self-referencing HTTP calls',
       'CRITICAL FIX: Uses real CSV data from scraper instead of hardcoded test data',
       'FIELD NAME FIX: Added support for csvContent field from scraper response',
-      'SYNTAX FIX: Fixed template literal conflict in HTML generation'
+      'SYNTAX FIX: Fixed template literal conflict in HTML generation',
+      'BACKFILL FIX: Added Method 1c for extracting CSV from results[] array structure'
     ],
     timestamp: new Date().toISOString()
   });
 });
 
-// ENHANCED CSV DATA EXTRACTION FUNCTION WITH csvContent FIELD SUPPORT
+// ENHANCED CSV DATA EXTRACTION FUNCTION WITH BACKFILL ARRAY SUPPORT
 async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null) {
   console.log('🔍 DEBUG: extractCSVDataFromScraper() - START');
   console.log('📊 DEBUG: scrapingResults type:', typeof scrapingResults);
@@ -236,6 +237,56 @@ async function extractCSVDataFromScraper(scrapingResults, mode, dateParam = null
     }
   } else {
     console.log('📊 DEBUG: Method 1b SKIPPED - No result.csvContent field found');
+  }
+  
+  // Method 1c: Check for csvContent in results array (FIX for backfill response structure)
+  console.log('🔍 DEBUG: Checking Method 1c - csvContent in results array (backfill mode)');
+  if (scrapingResults.results && Array.isArray(scrapingResults.results)) {
+    console.log('📊 DEBUG: Found results array with length:', scrapingResults.results.length);
+    
+    const csvDataParts = [];
+    let successfulResults = 0;
+    
+    scrapingResults.results.forEach((result, index) => {
+      console.log(`📊 DEBUG: Processing result ${index}: success=${result.success}, has csvContent=${!!result.csvContent}`);
+      
+      if (result.success && result.csvContent && result.csvContent.length > 100) {
+        console.log(`📊 DEBUG: Adding csvContent from result ${index}, length: ${result.csvContent.length}`);
+        csvDataParts.push(result.csvContent);
+        successfulResults++;
+      } else if (result.csvContent) {
+        console.log(`⚠️ DEBUG: Skipping result ${index} - csvContent too short (${result.csvContent.length} chars)`);
+      }
+    });
+    
+    if (csvDataParts.length > 0) {
+      // For multiple CSV files, we need to combine them intelligently
+      // Take the header from the first file, then append data rows from all files
+      let combinedCSV = '';
+      
+      csvDataParts.forEach((csvData, index) => {
+        const lines = csvData.split('\n').filter(line => line.trim());
+        
+        if (index === 0) {
+          // First file: include everything (header + data)
+          combinedCSV = csvData;
+        } else {
+          // Subsequent files: skip the header lines (first 3 lines) and append data
+          if (lines.length > 3) {
+            const dataLines = lines.slice(3); // Skip title + 2 header lines
+            combinedCSV += '\n' + dataLines.join('\n');
+          }
+        }
+      });
+      
+      console.log(`✅ DEBUG: Method 1c SUCCESS - Combined ${csvDataParts.length} CSV files into ${combinedCSV.length} characters`);
+      console.log(`📊 DEBUG: Combined CSV preview: ${combinedCSV.substring(0, 200)}`);
+      return combinedCSV;
+    } else {
+      console.log('❌ DEBUG: Method 1c FAILED - No successful results with valid csvContent found');
+    }
+  } else {
+    console.log('📊 DEBUG: Method 1c SKIPPED - No results array found');
   }
   
   // Method 2: Try to get download path and read file (from /smg-download endpoint)
@@ -339,7 +390,7 @@ async function runOrchestration(mode, dates = null) {
   };
 
   try {
-    console.log(`🚀 Starting SMG orchestration ${orchestrationId} with csvContent field support...`);
+    console.log(`🚀 Starting SMG orchestration ${orchestrationId} with backfill array support...`);
     
     // PHASE 1: SCRAPING
     console.log('📥 Phase 1: Starting SMG data scraping...');
@@ -387,7 +438,7 @@ async function runOrchestration(mode, dates = null) {
         console.log('📊 DEBUG: Backfill scraper response status:', response.status);
         console.log('📊 DEBUG: Backfill scraper response size:', JSON.stringify(scrapingResults).length, 'characters');
         
-        // Extract real CSV data for backfill
+        // Extract real CSV data for backfill - NOW WITH METHOD 1c SUPPORT
         csvData = await extractCSVDataFromScraper(scrapingResults, 'backfill');
         
         // Convert backfill result to expected format
@@ -420,7 +471,8 @@ async function runOrchestration(mode, dates = null) {
         dates_processed: scrapingResults.dates_processed || [],
         csv_records_extracted: csvRecords,
         csv_data_size: csvData.length,
-        scraper_endpoint_used: mode === 'daily' ? '/smg-download' : '/smg-backfill'
+        scraper_endpoint_used: mode === 'daily' ? '/smg-download' : '/smg-backfill',
+        extraction_method: mode === 'backfill' ? 'Method_1c_results_array' : 'Method_1b_result_object'
       };
       
       console.log(`✅ Phase 1 complete: ${scrapingResults.files_processed || 0} files scraped, ${csvRecords} records extracted`);
@@ -615,7 +667,8 @@ app.get('/status', async (req, res) => {
           'Fixed 404 error by removing self-referencing HTTP calls',
           'CRITICAL FIX: Now uses real CSV data from scraper instead of hardcoded test data',
           'FIELD NAME FIX: Added support for csvContent field from scraper response',
-          'SYNTAX FIX: Fixed template literal conflict in HTML generation'
+          'SYNTAX FIX: Fixed template literal conflict in HTML generation',
+          'BACKFILL FIX: Added Method 1c for extracting CSV from results[] array structure'
         ]
       },
       scheduled_jobs: {
@@ -710,7 +763,7 @@ cron.schedule('30 12 * * *', async () => {
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 SMG Orchestrator running on port ${PORT}`);
-  console.log('🔍 SYNTAX FIX: Fixed template literal conflict + csvContent support');
+  console.log('🔧 BACKFILL FIX: Added Method 1c for results[] array extraction');
   console.log('Service Configuration:');
   console.log('- Scraper URL:', SCRAPER_URL);
   console.log('- Pipeline URL:', PIPELINE_URL);
@@ -721,6 +774,7 @@ app.listen(PORT, () => {
   console.log('- CRITICAL FIX: Now extracts and uses real CSV data from scraper instead of hardcoded test data');
   console.log('- FIELD NAME FIX: Added support for csvContent field from scraper response (Method 1b)');
   console.log('- SYNTAX FIX: Fixed template literal conflict in HTML test page generation');
+  console.log('- BACKFILL FIX: Added Method 1c for extracting CSV from results[] array structure');
   console.log('\nAvailable Endpoints:');
   console.log('- GET  /           - Health check');
   console.log('- GET  /test       - Browser test page');
