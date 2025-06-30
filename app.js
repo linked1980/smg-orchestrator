@@ -22,7 +22,7 @@ const LOOP_CONFIG = {
 
 // TEST PAGE ENDPOINT
 app.get('/test', (req, res) => {
-  res.send(`
+  const htmlContent = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -54,9 +54,9 @@ app.get('/test', (req, res) => {
     
     <div class="module">
         <h3>📅 Daily Orchestration Test (Loop Strategy)</h3>
-        <p>Test complete daily flow processing last ${LOOP_CONFIG.daily_lookback_days} days using proven working logic:</p>
+        <p>Test complete daily flow processing last ` + LOOP_CONFIG.daily_lookback_days + ` days using proven working logic:</p>
         <div class="warning">⚠️ This will process real data for multiple dates - each using working 1,650 record logic!</div>
-        <button onclick="testDaily()">🔄 Test Daily Loop (${LOOP_CONFIG.daily_lookback_days} days)</button>
+        <button onclick="testDaily()">🔄 Test Daily Loop (` + LOOP_CONFIG.daily_lookback_days + ` days)</button>
         <div id="dailyResult" class="result">Click button to test...</div>
     </div>
     
@@ -75,8 +75,8 @@ app.get('/test', (req, res) => {
         <h3>🔗 Service Links</h3>
         <p>
             <a href="/status" target="_blank">Orchestrator Status</a> | 
-            <a href="${SCRAPER_URL}" target="_blank">Phase 1: Scraper</a> | 
-            <a href="${PIPELINE_URL}" target="_blank">Phase 2: Pipeline</a>
+            <a href="` + SCRAPER_URL + `" target="_blank">Phase 1: Scraper</a> | 
+            <a href="` + PIPELINE_URL + `" target="_blank">Phase 2: Pipeline</a>
         </p>
         <p><strong>Architecture:</strong> Phase 1 (Scraper) → Phase 3 (Orchestrator with Loops) → Phase 2 (Pipeline)</p>
     </div>
@@ -143,7 +143,7 @@ app.get('/test', (req, res) => {
                 return;
             }
             
-            resultDiv.textContent = `📊 Running backfill loop orchestration for ${startDate} to ${endDate}...\\nThis may take several minutes per date...`;
+            resultDiv.textContent = 'Running backfill loop orchestration for ' + startDate + ' to ' + endDate + '...\\nThis may take several minutes per date...';
             resultDiv.className = 'result';
             
             try {
@@ -170,7 +170,9 @@ app.get('/test', (req, res) => {
     </script>
 </body>
 </html>
-  `);
+  `;
+  
+  res.send(htmlContent);
 });
 
 // Health check endpoint
@@ -197,7 +199,8 @@ app.get('/', (req, res) => {
       'ADDED simple loop wrapper around working daily orchestration logic',
       'MAINTAINED all working CSV extraction that processes 1,650 records successfully',
       'ENHANCED with date iteration for both daily (last 3 days) and backfill modes',
-      'ISOLATED each date processing for better debugging and fail-safe operation'
+      'ISOLATED each date processing for better debugging and fail-safe operation',
+      'FIXED template literal syntax error in HTML generation'
     ],
     timestamp: new Date().toISOString()
   });
@@ -642,7 +645,8 @@ app.get('/status', async (req, res) => {
           'ADDED simple loop wrapper around working daily orchestration logic',
           'ENHANCED with date iteration for reliable multi-date processing',
           'MAINTAINED all working CSV extraction that processes 1,650 records successfully',
-          'ISOLATED each date processing for better debugging and fail-safe operation'
+          'ISOLATED each date processing for better debugging and fail-safe operation',
+          'FIXED template literal syntax error in HTML generation'
         ]
       },
       scheduled_jobs: {
